@@ -1,16 +1,1 @@
-[2025-05-25 10:43:49] Doctor said: hello I am
-[2025-05-25 10:43:49] Translated: हैलो मैं हूँ
-[2025-05-25 11:34:10] Doctor said: hello I am
-[2025-05-25 11:34:10] Translated: हैलो मैं हूँ
-[2025-05-25 11:34:11] Doctor said: hello I am Vaibhav I am a
-[2025-05-25 11:34:11] Translated: हैलो मैं वैभव हूँ मैं एक हूँ
-[2025-05-25 11:34:30] Doctor said: hello I
-[2025-05-25 11:34:30] Translated: हैलो मैं
-[2025-05-25 11:34:31] Doctor said: hello I am Vaibhav
-[2025-05-25 11:34:31] Translated: hello I am Vaibhav
-[2025-05-26 14:21:08] Doctor said: hello I am going
-[2025-05-26 14:21:08] Translated: हैलो मैं जा रहा हूँ
-[2025-06-06 18:44:31] Doctor said: hello my name
-[2025-06-06 18:44:31] Translated: नमस्ते मेरा नाम
-[2025-06-06 18:44:46] Doctor said: hello my
-[2025-06-06 18:44:46] Translated: नमस्ते मेरा
+
