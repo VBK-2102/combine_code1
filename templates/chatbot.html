@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block title %}Medical Chatbot{% endblock %}
+{% block subtitle %}Medical Consultation Analyzer{% endblock %}
+
+{% block content %}
+<div class="chatbot-container">
+  <!-- Notification Area -->
+  <div id="notification" class="alert alert-dismissible fade" role="alert">
+    <span id="notification-message"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+
+  <div class="row g-4">
+    <!-- Upload Section -->
+    <div class="col-lg-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h3 class="card-title"><i class="bi bi-cloud-upload me-2"></i>Upload Consultation</h3>
+          <form id="uploadForm" class="needs-validation" novalidate>
+            <div class="mb-3">
+              <label for="fileInput" class="form-label">Select PDF or Text File (Max 5MB)</label>
+              <input type="file" class="form-control" id="fileInput" accept=".pdf,.txt" required>
+              <div class="invalid-feedback">Please select a valid PDF or text file (max 5MB).</div>
+              <div class="form-text">Supported formats: PDF, TXT</div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100" id="analyzeBtn">
+              <span id="analyzeText">Analyze</span>
+              <span id="analyzeSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Section -->
+    <div class="col-lg-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="card-title"><i class="bi bi-file-earmark-text me-2"></i>Extracted Information</h3>
+            <button id="downloadBtn" class="btn btn-outline-primary d-none">
+              <i class="bi bi-download me-1"></i>Download Report
+            </button>
+          </div>
+
+          <div class="form-fields">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="field-name" class="form-label">Patient Name</label>
+                <input type="text" class="form-control" id="field-name" placeholder="Not found" readonly>
+              </div>
+              <div class="col-md-6">
+                <label for="field-age" class="form-label">Age</label>
+                <input type="text" class="form-control" id="field-age" placeholder="Not found" readonly>
+              </div>
+              <div class="col-12">
+                <label for="field-symptoms" class="form-label">Symptoms</label>
+                <textarea class="form-control" id="field-symptoms" rows="2" placeholder="No symptoms extracted" readonly></textarea>
+              </div>
+              <div class="col-12">
+                <label for="field-diagnosis" class="form-label">Diagnosis</label>
+                <textarea class="form-control" id="field-diagnosis" rows="2" placeholder="No diagnosis extracted" readonly></textarea>
+              </div>
+              <div class="col-md-8">
+                <label for="field-medication" class="form-label">Prescribed Medication</label>
+                <input type="text" class="form-control" id="field-medication" placeholder="Not found" readonly>
+              </div>
+              <div class="col-md-4">
+                <label for="field-followup" class="form-label">Follow-up Date</label>
+                <input type="text" class="form-control" id="field-followup" placeholder="Not scheduled" readonly>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const uploadForm = document.getElementById('uploadForm');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const fileInput = document.getElementById('fileInput');
+  const analyzeText = document.getElementById('analyzeText');
+  const analyzeSpinner = document.getElementById('analyzeSpinner');
+  const notification = document.getElementById('notification');
+  const notificationMessage = document.getElementById('notification-message');
+
+  // Show notification with auto-dismiss
+  function showNotification(message, type = 'info', duration = 5000) {
+    notification.className = `alert alert-${type} alert-dismissible fade show`;
+    notificationMessage.textContent = message;
+    
+    // Auto-dismiss after duration
+    setTimeout(() => {
+      const bsAlert = new bootstrap.Alert(notification);
+      bsAlert.close();
+    }, duration);
+  }
+
+  // Validate file before upload
+  function validateFile(file) {
+    const validTypes = ['application/pdf', 'text/plain'];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    const validExtensions = ['pdf', 'txt'];
+    const extension = file.name.split('.').pop().toLowerCase();
+
+    if (!validTypes.includes(file.type) && !validExtensions.includes(extension)) {
+      return { valid: false, message: 'Only PDF and text files are allowed' };
+    }
+    
+    if (file.size > maxSize) {
+      return { valid: false, message: 'File size must be less than 5MB' };
+    }
+    
+    return { valid: true };
+  }
+
+  // Handle form submission
+  uploadForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Reset form validation
+    uploadForm.classList.remove('was-validated');
+    
+    // Validate file
+    if (!fileInput.files.length) {
+      showNotification('Please select a file first', 'danger');
+      return;
+    }
+
+    const file = fileInput.files[0];
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      showNotification(validation.message, 'danger');
+      fileInput.classList.add('is-invalid');
+      return;
+    }
+
+    // Show loading state
+    analyzeBtn.disabled = true;
+    analyzeText.classList.add('d-none');
+    analyzeSpinner.classList.remove('d-none');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      // Clear previous validation classes
+      document.querySelectorAll('.form-control').forEach(el => {
+        el.classList.remove('is-valid', 'is-invalid');
+      });
+
+      // Map and populate fields
+      const fieldMappings = {
+        'Patient Name': 'field-name',
+        'Age': 'field-age',
+        'Symptoms': 'field-symptoms',
+        'Diagnosis': 'field-diagnosis',
+        'Prescribed Medication': 'field-medication',
+        'Follow-up Date': 'field-followup'
+      };
+
+      let foundFields = 0;
+      for (const [label, fieldId] of Object.entries(fieldMappings)) {
+        const field = document.getElementById(fieldId);
+        const regex = new RegExp(`${label}:\\s*([^\\n]+)`, 'i');
+        const match = result.form_data.match(regex);
+        
+        if (match && match[1].trim()) {
+          field.value = match[1].trim();
+          field.classList.add('is-valid');
+          foundFields++;
+        } else {
+          field.value = field.placeholder;
+          field.classList.add('is-invalid');
+        }
+      }
+
+      // Handle download button
+      if (result.download_link) {
+        downloadBtn.onclick = async (e) => {
+          e.preventDefault();
+          try {
+            // Show download in progress
+            const originalText = downloadBtn.innerHTML;
+            downloadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Downloading...';
+            downloadBtn.disabled = true;
+
+            // Fetch the file
+            const downloadUrl = result.download_link.replace('/download?', '/download_report?');
+            const response = await fetch(downloadUrl);
+            
+            if (!response.ok) throw new Error('Download failed');
+            
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            
+            // Create temporary anchor for download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'medical_report.pdf';
+            document.body.appendChild(a);
+            a.click();
+            
+            // Cleanup
+            setTimeout(() => {
+              window.URL.revokeObjectURL(url);
+              a.remove();
+              downloadBtn.innerHTML = originalText;
+              downloadBtn.disabled = false;
+            }, 100);
+            
+          } catch (error) {
+            showNotification('Failed to download file. Please try again.', 'danger');
+            console.error('Download error:', error);
+            downloadBtn.innerHTML = '<i class="bi bi-download me-1"></i>Download Report';
+            downloadBtn.disabled = false;
+          }
+        };
+
+        downloadBtn.classList.remove('d-none');
+      }
+
+      showNotification(`Analysis complete! Extracted ${foundFields} of ${Object.keys(fieldMappings).length} fields.`, 'success');
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      showNotification(error.message || 'Failed to process file. Please try again.', 'danger');
+    } finally {
+      analyzeBtn.disabled = false;
+      analyzeText.classList.remove('d-none');
+      analyzeSpinner.classList.add('d-none');
+    }
+  });
+
+  // Clear validation when new file is selected
+  fileInput.addEventListener('change', () => {
+    fileInput.classList.remove('is-invalid');
+    uploadForm.classList.remove('was-validated');
+  });
+});
+</script>
+{% endblock %}

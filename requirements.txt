@@ -1,0 +1,13 @@
+flask
+torch
+transformers
+speech_recognition
+gtts
+googletrans==4.0.0-rc1
+google-generativeai
+pymupdf
+python-dotenv
+fpdf
+flask-socketio
+gevent
+gevent-websocket

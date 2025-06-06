@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}Conversation Analysis{% endblock %}
+{% block subtitle %}Doctor-Patient Conversation Analyzer{% endblock %}
+
+{% block content %}
+<div class="analyzer-container">
+  <div class="settings-section">
+    <form method="POST" enctype="multipart/form-data" class="analysis-form">
+      <div class="file-upload-section">
+        <div class="file-upload-wrapper">
+          <label for="conversation-file" class="file-upload-label">
+            <i class="bi bi-cloud-arrow-up"></i>
+            <span class="file-upload-text">Choose Conversation File (PDF/TXT)</span>
+            <span id="file-name" class="file-name-display">No file selected</span>
+          </label>
+          <input type="file" id="conversation-file" name="file" accept=".pdf,.txt" required class="file-input">
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div class="setting-group">
+          <label for="model-select">LLM Model:</label>
+          <select id="model-select" name="model" class="form-select">
+            {% for model in available_models %}
+            <option value="{{ model }}" {% if model == default_model %}selected{% endif %}>{{ model }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <div class="setting-group">
+          <label for="temp-slider">Temperature: <span id="temp-value">{{ default_temp }}</span></label>
+          <input type="range" class="form-range" id="temp-slider" name="temperature" 
+                 min="0.1" max="1.5" step="0.1" value="{{ default_temp }}">
+        </div>
+        
+        <div class="setting-group">
+          <label for="length-slider">Max Length: <span id="length-value">{{ default_length }}</span></label>
+          <input type="range" class="form-range" id="length-slider" name="max_length" 
+                 min="50" max="1000" step="10" value="{{ default_length }}">
+        </div>
+      </div>
+
+      <div class="action-buttons">
+        <button type="submit" class="btn btn-primary analyze-btn">
+          <i class="bi bi-play-circle"></i> Analyze Conversation
+        </button>
+        <button type="button" class="btn btn-outline-secondary" id="preview-btn">
+          <i class="bi bi-eye"></i> Preview Text
+        </button>
+      </div>
+    </form>
+  </div>
+  
+  {% if error %}
+  <div class="alert alert-danger error-message">
+    <i class="bi bi-exclamation-triangle"></i> {{ error }}
+  </div>
+  {% endif %}
+
+  <!-- Preview Modal -->
+  <div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">File Content Preview</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <pre id="file-preview-content" class="preview-content"></pre>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+ {% if result %}
+<div class="results-section">
+  <div class="results-header">
+    <h3><i class="bi bi-clipboard2-pulse"></i> Analysis Results</h3>
+    <button class="btn btn-sm btn-outline-primary copy-btn" data-target="output-text">
+      <i class="bi bi-clipboard"></i> Copy
+    </button>
+  </div>
+  <div class="result-box">
+    <pre id="output-text" class="result-textarea">{{ result }}</pre>
+  </div>
+</div>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const tempSlider = document.getElementById('temp-slider');
+  const tempValue = document.getElementById('temp-value');
+  const lengthSlider = document.getElementById('length-slider');
+  const lengthValue = document.getElementById('length-value');
+
+  tempSlider.addEventListener('input', () => tempValue.textContent = tempSlider.value);
+  lengthSlider.addEventListener('input', () => lengthValue.textContent = lengthSlider.value);
+
+  const fileInput = document.getElementById('conversation-file');
+  const fileNameDisplay = document.getElementById('file-name');
+  fileInput.addEventListener('change', () => {
+    fileNameDisplay.textContent = fileInput.files.length ? fileInput.files[0].name : 'No file selected';
+  });
+
+  const previewBtn = document.getElementById('preview-btn');
+  const previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+  previewBtn.addEventListener('click', () => {
+    if (fileInput.files.length) {
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('file-preview-content').textContent = e.target.result;
+        previewModal.show();
+      };
+      if (file.type === 'application/pdf') {
+        alert('PDF preview is not available. Please upload a TXT file.');
+      } else {
+        reader.readAsText(file);
+      }
+    } else {
+      alert('Please select a file first');
+    }
+  });
+
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const targetId = this.getAttribute('data-target');
+      const textToCopy = document.getElementById(targetId).textContent;
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        const originalText = this.innerHTML;
+        this.innerHTML = '<i class="bi bi-check"></i> Copied!';
+        setTimeout(() => this.innerHTML = originalText, 2000);
+      });
+    });
+  });
+});
+</script>
+{% endblock %}
+
+{% block styles %}
+<style>
+.analyzer-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.file-upload-wrapper {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.file-upload-label {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  background-color: #f8f9fa;
+  border: 2px dashed #dee2e6;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.file-upload-label:hover {
+  border-color: #0d6efd;
+  background-color: #e9f0ff;
+}
+
+.file-upload-text {
+  margin-left: 10px;
+  font-weight: 500;
+}
+
+.file-name-display {
+  margin-left: auto;
+  color: #6c757d;
+  font-size: 0.9em;
+}
+
+.file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.settings-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.setting-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.analyze-btn {
+  min-width: 200px;
+}
+
+/* ✅ RESULTS SECTION */
+.results-section {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #ddd;
+}
+
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.result-box {
+  border: 2px solid #dee2e6;
+  border-radius: 10px;
+  background-color: #fdfdfd;
+  padding: 20px;
+  width: 100%;
+}
+
+.result-textarea {
+  font-family: monospace;
+  font-size: 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* ✅ NO SCROLLING PREVIEW */
+.preview-content {
+  white-space: pre-wrap;
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 5px;
+}
+
+@media (max-width: 768px) {
+  .settings-row {
+    flex-direction: column;
+    gap: 15px;
+  }
+  .setting-group {
+    width: 100%;
+  }
+}
+</style>
+{% endblock %}

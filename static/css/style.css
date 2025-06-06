@@ -1,0 +1,407 @@
+:root {
+    --primary-color: #214e9c;
+    --primary-hover: #1761b3;
+    --bg-color: #f0f4f8;
+    --card-bg: #ffffff;
+    --text-color: #333333;
+    --border-color: #c9dbfc;
+    --input-bg: #ffffff;
+    --dark-text: #214e9c;
+    --light-text: #5a5a5a;
+    --doctor-bubble: #dbe9ff;
+    --patient-bubble: #f5dbff;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-color);
+    font-family: 'Open Sans', sans-serif;
+    color: var(--text-color);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.container-fluid {
+    padding: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header styles */
+.header {
+    padding: 20px 0;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
+    text-align: center;
+    background-color: white;
+}
+
+.logo {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin: 0;
+    text-shadow: 1px 1px 3px #d0e1ff;
+}
+
+.subtitle {
+    font-size: 1.2rem;
+    color: var(--light-text);
+    margin: 0;
+}
+
+/* Navigation */
+.navigation {
+    background-color: white;
+    border-bottom: 1px solid var(--border-color);
+    padding: 10px 0;
+}
+
+.nav-link {
+    display: inline-block;
+    padding: 8px 20px;
+    margin: 0 10px;
+    color: var(--dark-text);
+    text-decoration: none;
+    font-weight: 600;
+    border-radius: 20px;
+    transition: all 0.3s ease;
+}
+
+.nav-link:hover {
+    background-color: #e6f0ff;
+    color: var(--primary-hover);
+}
+
+.nav-link.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.nav-link i {
+    margin-right: 8px;
+}
+
+/* Content area */
+.content {
+    flex: 1;
+    padding: 20px;
+}
+
+/* Card styles */
+.settings-card, .result-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 16px rgba(33, 78, 156, 0.12);
+    transition: box-shadow 0.3s ease;
+}
+
+.settings-card:hover, .result-card:hover {
+    box-shadow: 0 6px 24px rgba(33, 78, 156, 0.24);
+}
+
+.card-header {
+    background-color: rgba(214, 228, 255, 0.3);
+    border-bottom: 1px solid var(--border-color);
+    padding: 12px 20px;
+}
+
+.card-header h3 {
+    font-weight: 700;
+    font-size: 1.75rem;
+    margin: 0;
+    color: var(--dark-text);
+    text-shadow: 0 1px 2px #c6dbff;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+/* Form elements */
+.form-label {
+    font-weight: 700;
+    color: var(--dark-text);
+    margin-bottom: 8px;
+}
+
+.form-select, .form-control {
+    background-color: var(--input-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 10px 15px;
+    color: var(--dark-text);
+    font-weight: 600;
+}
+
+.form-select:focus, .form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.25rem rgba(33, 78, 156, 0.25);
+}
+
+.dark-select {
+    background-color: var(--input-bg);
+    color: var(--dark-text);
+    border-color: var(--border-color);
+}
+
+.dark-textarea {
+    background-color: var(--input-bg);
+    color: var(--dark-text);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 15px;
+    width: 100%;
+    resize: none;
+}
+
+.dark-textarea:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.25rem rgba(33, 78, 156, 0.25);
+}
+
+/* Buttons */
+.btn {
+    font-weight: 700;
+    padding: 10px 20px;
+    border-radius: 14px;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
+}
+
+.btn-secondary {
+    background-color: #d6e4ff;
+    color: var(--dark-text);
+    border-color: #d6e4ff;
+}
+
+.btn-secondary:hover {
+    background-color: #c1d4ff;
+    color: var(--primary-hover);
+    border-color: #c1d4ff;
+}
+
+.btn-outline-primary {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* Chat boxes */
+.chat-box {
+    background: #f7faff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px 20px;
+    max-height: 400px;
+    overflow-y: auto;
+    font-family: 'Open Sans', sans-serif;
+    font-size: 1rem;
+    color: var(--dark-text);
+    scroll-behavior: smooth;
+    transition: background-color 0.3s ease;
+}
+
+.chat-box:hover {
+    background-color: #eef4ff;
+}
+
+/* Chat message styles */
+.chat-message {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 12px;
+    position: relative;
+    gap: 10px;
+    word-wrap: break-word;
+    opacity: 0;
+    animation: fadeInUp 0.4s forwards;
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.chat-message.doctor {
+    flex-direction: row;
+    justify-content: flex-start;
+}
+
+.chat-message.patient {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+}
+
+/* Avatar */
+.avatar {
+    width: 36px;
+    height: 42px;
+    border-radius: 8px;
+    object-fit: cover;
+    box-shadow: 0 0 6px rgba(33, 78, 156, 0.25);
+    transition: box-shadow 0.3s ease;
+}
+
+.avatar:hover {
+    box-shadow: 0 0 14px rgba(33, 78, 156, 0.5);
+}
+
+/* Message bubbles */
+.message-bubble {
+    max-width: 70%;
+    padding: 10px 18px 20px 18px;
+    border-radius: 20px;
+    font-size: 1rem;
+    line-height: 1.4;
+    position: relative;
+    white-space: pre-wrap;
+    box-shadow: 0 2px 8px rgba(33, 78, 156, 0.15);
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    font-weight: 600;
+}
+
+.message-bubble:hover {
+    box-shadow: 0 4px 14px rgba(23, 97, 179, 0.4);
+}
+
+/* Doctor message bubble */
+.chat-message.doctor .message-bubble {
+    background: var(--doctor-bubble);
+    color: var(--dark-text);
+}
+
+/* Patient message bubble */
+.chat-message.patient .message-bubble {
+    background: var(--patient-bubble);
+    color: #5a297a;
+}
+
+/* Timestamp */
+.timestamp {
+    font-size: 10px;
+    color: var(--light-text);
+    position: absolute;
+    bottom: 6px;
+    right: 14px;
+    font-weight: 500;
+}
+
+/* Alert */
+.alert {
+    border-radius: 12px;
+}
+
+/* Footer */
+.footer {
+    background-color: white;
+    border-top: 1px solid var(--border-color);
+    padding: 15px 0;
+    margin-top: auto;
+}
+
+/* Sliders */
+.form-range::-webkit-slider-thumb {
+    background: var(--primary-color);
+}
+
+.form-range::-moz-range-thumb {
+    background: var(--primary-color);
+}
+
+.form-range::-ms-thumb {
+    background: var(--primary-color);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .content {
+        padding: 15px;
+    }
+    
+    .chat-message.patient {
+        flex-direction: row;
+    }
+    
+    .message-bubble {
+        max-width: 80%;
+    }
+}
+
+@media (max-width: 576px) {
+    .logo {
+        font-size: 2rem;
+    }
+    
+    .subtitle {
+        font-size: 1rem;
+    }
+    
+    .nav-link {
+        padding: 6px 12px;
+        font-size: 0.9rem;
+        margin: 0 5px;
+    }
+    
+    .card-header h3 {
+        font-size: 1.4rem;
+    }
+}
+
+/* Chatbot specific styles */
+.highlight-error {
+    border: 2px solid #dc3545 !important;
+}
+
+/* Form controls */
+.form-control {
+    background-color: var(--input-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 10px 15px;
+    color: var(--dark-text);
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.25rem rgba(33, 78, 156, 0.25);
+}
+
+/* File input */
+.form-control[type="file"] {
+    padding: 8px;
+    cursor: pointer;
+}
+
+/* Alert styles */
+.alert {
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
