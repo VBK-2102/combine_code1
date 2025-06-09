@@ -42,27 +42,16 @@ LANGUAGES = {
 
 history_file = "translated_output.txt"
 
-# ========== Utility Functions ==========
-
-# ========== GPT-2 Summarizer ==========
-
+# ========== Conversation Analyzer ==========
 class ConversationAnalyzer:
     def __init__(self, model_name: str = "gpt2"):
-        """
-        Initialize the conversation analyzer with a pre-trained language model.
-        """
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForCausalLM.from_pretrained(model_name).to(self.device)
-
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
     def _read_file_content(self, uploaded_file):
-        """
-        Read and decode the uploaded file content (.txt or .pdf).
-        """
         filename = uploaded_file.filename.lower()
         if filename.endswith('.pdf'):
             try:
@@ -79,9 +68,6 @@ class ConversationAnalyzer:
             raise ValueError("Unsupported file format. Only .txt and .pdf are allowed.")
 
     def analyze_conversation(self, input_data, max_length: int = 200, temperature: float = 0.7):
-        """
-        Analyze a doctor-patient conversation and generate a structured summary.
-        """
         if hasattr(input_data, "filename"):
             conversation_text = self._read_file_content(input_data)
         elif isinstance(input_data, str):
@@ -117,7 +103,6 @@ Analysis Summary:
             )
 
         full_output = self.tokenizer.decode(output[0], skip_special_tokens=True)
-
         summary_start = full_output.find("Analysis Summary:") + len("Analysis Summary:")
         summary = full_output[summary_start:].strip()
 
@@ -126,16 +111,13 @@ Analysis Summary:
 
         return summary
 
-# Initialize the Conversation Analyzer
+# Initialize components
 try:
-    print("Initializing Conversation Analyzer...")
     model_processor = ConversationAnalyzer(model_name="gpt2")
-    print("Conversation Analyzer initialized successfully.")
 except Exception as e:
     model_processor = None
     print(f"Error initializing Conversation Analyzer: {e}")
 
-# Globals
 translator_engine = Translator()
 
 # ========== Utility Functions ==========
@@ -143,11 +125,8 @@ def get_language_code(language_name):
     return LANGUAGES.get(language_name, "en")
 
 def recognize_speech():
-    """Recognize speech with error handling for microphone issues"""
     recognizer = sr.Recognizer()
-    
     try:
-        # Check if microphone is available
         if not sr.Microphone.list_microphone_names():
             return "Microphone not detected"
             
@@ -174,8 +153,7 @@ def recognize_speech():
 def translate_text(text, target_lang_code):
     try:
         if text.startswith(("Speech Recognition Error", "Microphone")):
-            return text  # Don't translate error messages
-            
+            return text
         translated = translator_engine.translate(text, dest=target_lang_code)
         return translated.text
     except Exception as e:
@@ -183,10 +161,8 @@ def translate_text(text, target_lang_code):
         return "[Translation error]"
 
 def speak_text(text, lang_code):
-    """Wrapper function that uses text_to_voice"""
     if not text or text.startswith(("Speech Recognition Error", "Microphone")):
-        return  # Don't speak error messages
-        
+        return
     text_to_voice(text, lang_code)
 
 def translate_and_speak(speaker, target_lang_name):
@@ -196,11 +172,9 @@ def translate_and_speak(speaker, target_lang_name):
     if not spoken_text:
         return f"{speaker} said nothing or speech could not be recognized."
     if spoken_text.startswith(("Speech Recognition Error", "Microphone")):
-        return spoken_text  # Return the error message directly
+        return spoken_text
 
     translated = translate_text(spoken_text, target_lang_code)
-    
-    # Send the translated text to be spoken via WebSocket
     speak_text(translated, target_lang_code)
 
     timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
@@ -211,7 +185,6 @@ def translate_and_speak(speaker, target_lang_name):
     return f"{timestamp} {speaker} said: {spoken_text}\n{timestamp} Translated: {translated}"
 
 def text_to_voice(text_data, to_language):
-    """Convert text to speech and emit it via WebSocket"""
     try:
         if not text_data:
             return
@@ -256,23 +229,6 @@ def read_conversation_history():
     except FileNotFoundError:
         conversation = []
     return conversation
-
-def extract_text(file):
-    """Extract text from uploaded PDF or text file"""
-    try:
-        if file.filename.endswith(".pdf"):
-            doc = pymupdf.open(stream=file.read(), filetype="pdf")
-            text = []
-            for page in doc:
-                text.append(page.get_text())
-            return "\n".join(text)
-        elif file.filename.endswith(".txt"):
-            return file.read().decode("utf-8")
-        else:
-            return f"Unsupported file type: {file.filename.split('.')[-1]}"
-    except Exception as e:
-        print(f"Error extracting text: {e}")
-        return f"Error reading file: {str(e)}"
 
 # ========== Routes ==========
 @app.route("/")
@@ -321,18 +277,15 @@ def translator():
 @app.route("/download_file")
 def download_file():
     return send_file(history_file, as_attachment=True)
-    
+
 @app.route("/llm", methods=["GET", "POST"])
 def llm():
-
     if request.method == "POST":
-        # Handle file upload
         uploaded_file = request.files.get("file")
         model_name = request.form.get("model", "gpt2")
         max_length = int(request.form.get("max_length", 150))
         temperature = float(request.form.get("temperature", 0.7))
 
-        # Validate file upload
         if not uploaded_file or uploaded_file.filename == '':
             return render_template("llm.html", 
                                 available_models=["gpt2"], 
@@ -341,7 +294,6 @@ def llm():
                                 default_temp=temperature,
                                 error="Please select a file")
 
-        # Check file extension
         if not (uploaded_file.filename.endswith('.pdf') or uploaded_file.filename.endswith('.txt')):
             return render_template("llm.html", 
                                 available_models=["gpt2"], 
@@ -350,7 +302,6 @@ def llm():
                                 default_temp=temperature,
                                 error="Only PDF and TXT files are allowed")
 
-        # Extract text from file
         try:
             if uploaded_file.filename.endswith('.pdf'):
                 doc = pymupdf.open(stream=uploaded_file.read(), filetype="pdf")
@@ -373,7 +324,6 @@ def llm():
                                 default_temp=temperature,
                                 error="File is empty")
 
-        # Process with LLM
         if model_processor is None:
             return render_template("llm.html",
                                 available_models=["gpt2"],
@@ -414,7 +364,7 @@ File: {uploaded_file.filename}
                          default_length=150, 
                          default_temp=0.7)
 
-@app.route("/chatbot", methods=["GET", "POST"])
+@app.route("/chatbot")
 def chatbot():
     return render_template("chatbot.html")
 
@@ -429,11 +379,9 @@ def upload_file():
         if uploaded_file.filename == '':
             return jsonify({"error": "No selected file"}), 400
 
-        # Validate file extension
         if not (uploaded_file.filename.endswith('.pdf') or uploaded_file.filename.endswith('.txt')):
             return jsonify({"error": "Invalid file type. Only PDF and TXT allowed"}), 400
 
-        # Read file content safely
         file_content = ""
         try:
             if uploaded_file.filename.endswith('.pdf'):
@@ -464,7 +412,7 @@ def upload_file():
         Follow-up Date: [value]
 
         Conversation:
-        """ + file_content[:2000]  # Limit to first 2000 characters
+        """ + file_content[:2000]
 
         try:
             response = model.generate_content(prompt)
@@ -473,18 +421,15 @@ def upload_file():
                 
             extracted = response.text
 
-            # Generate PDF
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Arial", size=12)
             
-            # Add title
             pdf.cell(200, 10, txt="Medical Consultation Summary", ln=1, align='C')
             pdf.ln(10)
             
-            # Add extracted content
             for line in extracted.splitlines():
-                if ':' in line:  # Only process lines with field: value format
+                if ':' in line:
                     field, value = line.split(':', 1)
                     pdf.set_font("Arial", 'B', 12)
                     pdf.cell(50, 10, txt=f"{field}:", ln=0)
@@ -492,7 +437,6 @@ def upload_file():
                     pdf.multi_cell(0, 10, txt=value.strip())
                     pdf.ln(5)
 
-            # Save to temp file
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_pdf:
                 pdf.output(temp_pdf.name)
                 temp_path = temp_pdf.name
@@ -518,7 +462,6 @@ def download_report():
         if not file_name:
             return "Missing file name", 400
 
-        # Security: Only allow files from temp directory with .pdf extension
         if not file_name.endswith('.pdf'):
             return "Invalid file type", 400
 
@@ -526,11 +469,8 @@ def download_report():
         file_path = os.path.join(temp_dir, file_name)
         
         if not os.path.exists(file_path):
-            print(f"File not found at: {file_path}")  # Debug
-            print(f"Temp directory contents: {os.listdir(temp_dir)}")  # Debug
             return "File not found", 404
 
-        print(f"Serving file from: {file_path}")  # Debug
         return send_file(
             file_path,
             as_attachment=True,
@@ -554,7 +494,6 @@ def handle_disconnect():
 
 @socketio.on('speak_text')
 def handle_speak_text(data):
-    """Handle direct text-to-speech requests from client"""
     try:
         text = data.get('text', '')
         lang_code = data.get('lang_code', 'en')
@@ -566,6 +505,5 @@ def handle_speak_text(data):
         print(f"Error in handle_speak_text: {e}")
         return {'status': 'error', 'message': str(e)}
 
-# ========== Run Flask App with SocketIO ==========
 if __name__ == "__main__":
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
