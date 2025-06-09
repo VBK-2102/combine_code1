@@ -7,9 +7,83 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <style>
+        .chat-box {
+            height: 400px;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .chat-message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-start;
+        }
+        .doctor {
+            justify-content: flex-end;
+        }
+        .patient {
+            justify-content: flex-start;
+        }
+        .message-bubble {
+            max-width: 70%;
+            padding: 10px 15px;
+            border-radius: 18px;
+            position: relative;
+        }
+        .doctor .message-bubble {
+            background-color: #007bff;
+            color: white;
+            margin-left: 10px;
+        }
+        .patient .message-bubble {
+            background-color: #e9ecef;
+            color: black;
+            margin-right: 10px;
+        }
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .timestamp {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+        .settings-card {
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .result-card {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            height: 100%;
+        }
+        .header {
+            background-color: #f8f9fa;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        #status-alert {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: none;
+        }
+    </style>
 </head>
 <body>
     <div class="container-fluid">
+        <!-- Status Alert -->
+        <div id="status-alert" class="alert alert-dismissible fade show" role="alert">
+            <span id="alert-message"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+
         <div class="row min-vh-100">
             <div class="col-md-12">
                 <div class="header text-center py-4">
@@ -89,8 +163,8 @@
                                         <div class="chat-message {{ entry.speaker }}">
                                             <img src="{{ url_for('static', filename=entry.speaker + '.jpg') }}" class="avatar" alt="{{ entry.speaker | capitalize }} Avatar">
                                             <div class="message-bubble">
-                                                {{ entry.text.split('] ')[1:] | join('] ') }}
-                                                <div class="timestamp">{{ entry.text.split(']')[0] ~ ']' }}</div>
+                                                {{ entry.translated if entry.translated else entry.original }}
+                                                <div class="timestamp">{{ entry.timestamp }}</div>
                                             </div>
                                         </div>
                                     {% endfor %}
@@ -99,7 +173,7 @@
                                 {% endif %}
                             </div>
                             <div class="card-footer">
-                                <a href="{{ url_for('download_file') }}" class="btn btn-outline-primary w-100">
+                                <a href="{{ url_for('download_file') }}" class="btn btn-outline-primary w-100" id="download-btn">
                                     <i class="bi bi-download"></i> Download Conversation
                                 </a>
                             </div>
@@ -114,21 +188,57 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const socket = io();
+        const socket = io({
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000
+        });
         const audioPlayer = new Audio();
+        let isProcessing = false;
+        
+        // Status alert elements
+        const statusAlert = document.getElementById('status-alert');
+        const alertMessage = document.getElementById('alert-message');
+        
+        function showAlert(message, type = 'danger') {
+            statusAlert.className = `alert alert-${type} alert-dismissible fade show`;
+            alertMessage.textContent = message;
+            statusAlert.style.display = 'block';
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                const alert = bootstrap.Alert.getOrCreateInstance(statusAlert);
+                alert.close();
+            }, 5000);
+        }
         
         socket.on('connect', () => {
             console.log('Connected to WebSocket server');
+            showAlert('Connected to translation service', 'success');
         });
         
         socket.on('disconnect', () => {
             console.log('Disconnected from WebSocket server');
+            showAlert('Disconnected from translation service', 'warning');
+        });
+        
+        socket.on('connect_error', (error) => {
+            console.error('Socket connection error:', error);
+            showAlert('Connection error with translation service', 'danger');
         });
         
         socket.on('audio_data', (data) => {
             console.log('Received audio data for language:', data.language);
-            audioPlayer.src = 'data:audio/mp3;base64,' + data.audio_data;
-            audioPlayer.play();
+            try {
+                audioPlayer.src = 'data:audio/mp3;base64,' + data.audio_data;
+                audioPlayer.play().catch(e => {
+                    console.error('Audio playback error:', e);
+                    showAlert('Audio playback failed. Please check your speakers.', 'warning');
+                });
+            } catch (e) {
+                console.error('Error handling audio data:', e);
+                showAlert('Error processing audio', 'danger');
+            }
         });
         
         function get_language_code(languageName) {
@@ -150,16 +260,23 @@
         const patientLang = document.getElementById('patient-lang-input');
         const latestMessageContainer = document.getElementById('latest-message-container');
         const conversationHistory = document.getElementById('conversation-history');
+        const downloadBtn = document.getElementById('download-btn');
 
         function flashStatus(button, originalLabel) {
+            if (isProcessing) return;
+            
             const labelSpan = button.querySelector('.btn-label');
             labelSpan.textContent = "Listening...";
             setTimeout(() => {
-                labelSpan.textContent = "Recognizing...";
+                if (isProcessing) {
+                    labelSpan.textContent = "Recognizing...";
+                }
             }, 4000);
         }
 
         function updateUI(response) {
+            isProcessing = false;
+            
             if (response.message) {
                 const sender = response.sender;
                 const message = response.message;
@@ -176,11 +293,12 @@
                     </div>
                 `;
                 
-                if (message.includes("Microphone not") || message.includes("Speech Recognition Error")) {
+                if (message.includes("Microphone not") || message.includes("Speech Recognition Error") || message.includes("Error in translation")) {
                     const errorElement = document.createElement('div');
                     errorElement.className = 'alert alert-warning mt-3';
                     errorElement.textContent = messageText;
                     latestMessageContainer.appendChild(errorElement);
+                    showAlert(messageText, 'warning');
                 }
             }
             
@@ -190,23 +308,36 @@
                     'Accept': 'application/json'
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
             .then(data => {
                 if (data.conversation) {
                     conversationHistory.innerHTML = data.conversation.map(entry => `
                         <div class="chat-message ${entry.speaker}">
                             <img src="/static/${entry.speaker}.jpg" class="avatar" alt="${entry.speaker} Avatar">
                             <div class="message-bubble">
-                                ${entry.text.split('] ')[1]}
-                                <div class="timestamp">${entry.text.split(']')[0]}]</div>
+                                ${entry.translated || entry.original}
+                                <div class="timestamp">${entry.timestamp}</div>
                             </div>
                         </div>
                     `).join('') || '<p><em>No history yet.</em></p>';
+                    
+                    // Enable/disable download button based on history
+                    downloadBtn.classList.toggle('disabled', data.conversation.length === 0);
                 }
+            })
+            .catch(error => {
+                console.error('Error fetching conversation history:', error);
+                showAlert('Error loading conversation history', 'danger');
             });
         }
 
         function sendRequest(action) {
+            if (isProcessing) return;
+            isProcessing = true;
+            
             const formData = new FormData();
             formData.append('action', action);
             formData.append('doctor_lang', doctorLang.value);
@@ -219,7 +350,10 @@
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
             .then(data => {
                 updateUI(data);
                 const button = action === 'doctor' ? doctorBtn : patientBtn;
@@ -228,6 +362,7 @@
             })
             .catch(error => {
                 console.error('Error:', error);
+                isProcessing = false;
                 const button = action === 'doctor' ? doctorBtn : patientBtn;
                 button.querySelector('.btn-label').textContent = 
                     action === 'doctor' ? 'Doctor Speaking' : 'Patient Speaking';
@@ -236,15 +371,18 @@
                 errorElement.className = 'alert alert-danger mt-3';
                 errorElement.textContent = 'Error processing request. Please try again.';
                 latestMessageContainer.appendChild(errorElement);
+                showAlert('Translation request failed', 'danger');
             });
         }
 
         doctorBtn.addEventListener('click', () => {
+            if (isProcessing) return;
             flashStatus(doctorBtn, "Doctor Speaking");
             sendRequest('doctor');
         });
 
         patientBtn.addEventListener('click', () => {
+            if (isProcessing) return;
             flashStatus(patientBtn, "Patient Speaking");
             sendRequest('patient');
         });
@@ -258,13 +396,28 @@
                     'Content-Type': 'application/x-www-form-urlencoded',
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
             .then(data => {
                 if (data.status === 'cleared') {
                     conversationHistory.innerHTML = '<p><em>No history yet.</em></p>';
+                    latestMessageContainer.innerHTML = '<p><em>Not yet started.</em></p>';
+                    downloadBtn.classList.add('disabled');
+                    showAlert('Conversation cleared', 'success');
+                } else if (data.message) {
+                    throw new Error(data.message);
                 }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('Failed to clear conversation', 'danger');
             });
         });
+
+        // Disable download button if no history
+        downloadBtn.classList.toggle('disabled', {{ 'false' if conversation else 'true' }});
     });
     </script>
 </body>
