@@ -1,267 +1,271 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Doctor-Patient Translator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row min-vh-100">
+            <div class="col-md-12">
+                <div class="header text-center py-4">
+                    <h1>Real-time Doctor-Patient Translator</h1>
+                    <p class="lead">Break language barriers in medical consultations</p>
+                </div>
 
-{% block title %}Real-time Doctor-Patient Translator{% endblock %}
-{% block subtitle %}Real-time Doctor-Patient Translator{% endblock %}
-
-{% block content %}
-<div class="row content">
-  <div class="col-md-12">
-    <div class="card settings-card">
-      <div class="card-body">
-        <form id="translator-form">
-          <div class="row">
-            <div class="col-md-5">
-              <div class="mb-3">
-                <label for="doctor-lang-input" class="form-label">Doctor's Target Language:</label>
-                <select class="form-select dark-select" id="doctor-lang-input" name="doctor_lang">
-                  {% for language in languages %}
-                  <option value="{{ language }}" {% if language == doctor_lang %}selected{% endif %}>{{ language }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-            </div>
-            
-            <div class="col-md-5">
-              <div class="mb-3">
-                <label for="patient-lang-input" class="form-label">Patient's Target Language:</label>
-                <select class="form-select dark-select" id="patient-lang-input" name="patient_lang">
-                  {% for language in languages %}
-                  <option value="{{ language }}" {% if language == patient_lang %}selected{% endif %}>{{ language }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-            </div>
-            
-            <div class="col-md-2 d-flex align-items-end">
-              <button type="button" id="clear-btn" class="btn btn-secondary w-100">
-                <i class="bi bi-trash"></i> Clear
-              </button>
-            </div>
-          </div>
-          
-          <div class="row mt-3">
-            <div class="col-md-6">
-              <button id="doctor-btn" type="button" class="btn btn-primary w-100">
-                <i class="bi bi-mic"></i> <span class="btn-label">Doctor Speaking</span>
-              </button>
-            </div>
-            <div class="col-md-6">
-              <button id="patient-btn" type="button" class="btn btn-primary w-100">
-                <i class="bi bi-mic"></i> <span class="btn-label">Patient Speaking</span>
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-    
-    <div class="row mt-4">
-      <div class="col-md-6">
-        <div class="card result-card">
-          <div class="card-header">
-            <h3>Latest Message:</h3>
-          </div>
-          <div class="card-body chat-box" id="latest-message-container" role="log" aria-live="polite" aria-atomic="true">
-            <p><em>Not yet started.</em></p>
-          </div>
-        </div>
-      </div>
-      
-      <div class="col-md-6">
-        <div class="card result-card">
-          <div class="card-header">
-            <h3>Conversation History:</h3>
-          </div>
-          <div class="card-body chat-box" id="conversation-history" role="log" aria-live="polite" aria-atomic="false">
-            {% if conversation %}
-              {% for entry in conversation %}
-                <article class="chat-message {{ entry.speaker }}" aria-label="{{ entry.speaker | capitalize }} message">
-                  <img src="{{ url_for('static', filename=entry.speaker + '.jpg') }}" class="avatar" alt="{{ entry.speaker | capitalize }} Avatar" />
-                  <div class="message-bubble">
-                    {{ entry.text.split('] ')[1:] | join('] ') }}
-                    <div class="timestamp">{{ entry.text.split(']')[0] ~ ']' }}</div>
-                  </div>
-                </article>
-              {% endfor %}
-            {% else %}
-              <p><em>No history yet.</em></p>
-            {% endif %}
-          </div>
-          <div class="card-footer">
-            <a href="{{ url_for('download_file') }}" class="btn btn-outline-primary w-100">
-              <i class="bi bi-download"></i> Download Conversation
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    // Initialize Socket.IO connection
-    const socket = io();
-    
-    // Create audio element for playing received audio
-    const audioPlayer = new Audio();
-    
-    // Socket.IO event listeners
-    socket.on('connect', () => {
-        console.log('Connected to WebSocket server');
-    });
-    
-    socket.on('disconnect', () => {
-        console.log('Disconnected from WebSocket server');
-    });
-    
-    socket.on('audio_data', (data) => {
-        console.log('Received audio data for language:', data.language);
-        // Convert base64 to audio and play it
-        audioPlayer.src = 'data:audio/mp3;base64,' + data.audio_data;
-        audioPlayer.play();
-    });
-    
-    // Function to request text-to-speech via WebSocket
-    function requestTextToSpeech(text, langCode) {
-        if (text && langCode) {
-            socket.emit('speak_text', {
-                text: text,
-                lang_code: langCode
-            });
-        }
-    }
-    
-    // Helper function to get language code from language name
-    function get_language_code(languageName) {
-        const LANGUAGES = {
-            "English": "en", "Hindi": "hi", "Kannada": "kn", "Marathi": "mr", "Tamil": "ta",
-            "Telugu": "te", "Spanish": "es", "French": "fr", "Haryanvi": "bgc", "Arabic": "ar",
-            "Bengali": "bn", "Chinese": "zh", "German": "de", "Japanese": "ja", "Portuguese": "pt",
-            "Russian": "ru", "Urdu": "ur", "Punjabi": "pa", "Gujarati": "gu", "Malayalam": "ml",
-            "Odia": "or", "Italian": "it", "Dutch": "nl", "Korean": "ko", "Turkish": "tr", 
-            "Vietnamese": "vi", "Thai": "th"
-        };
-        return LANGUAGES[languageName] || "en";
-    }
-    
-    const doctorBtn = document.getElementById('doctor-btn');
-    const patientBtn = document.getElementById('patient-btn');
-    const clearBtn = document.getElementById('clear-btn');
-    const doctorLang = document.getElementById('doctor-lang-input');
-    const patientLang = document.getElementById('patient-lang-input');
-    const latestMessageContainer = document.getElementById('latest-message-container');
-    const conversationHistory = document.getElementById('conversation-history');
-
-    function flashStatus(button, originalLabel) {
-        const labelSpan = button.querySelector('.btn-label');
-        labelSpan.textContent = "Listening...";
-        setTimeout(() => {
-            labelSpan.textContent = "Recognizing...";
-        }, 4000);
-    }
-
-    function updateUI(response) {
-        // Update latest message
-        if (response.message) {
-            const sender = response.sender;
-            const message = response.message;
-            const timestamp = message.split(']')[0] + ']';
-            const messageText = message.split('] ')[1];
-            
-            latestMessageContainer.innerHTML = `
-                <article class="chat-message ${sender}" aria-label="${sender} message">
-                    <img src="/static/${sender}.jpg" class="avatar" alt="${sender} Avatar" />
-                    <div class="message-bubble">
-                        ${messageText}
-                        <div class="timestamp">${timestamp}</div>
+                <div class="card settings-card mb-4">
+                    <div class="card-body">
+                        <form id="translator-form">
+                            <div class="row">
+                                <div class="col-md-5">
+                                    <div class="mb-3">
+                                        <label for="doctor-lang-input" class="form-label">Doctor's Language:</label>
+                                        <select class="form-select" id="doctor-lang-input" name="doctor_lang">
+                                            {% for language in languages %}
+                                            <option value="{{ language }}" {% if language == doctor_lang %}selected{% endif %}>{{ language }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-5">
+                                    <div class="mb-3">
+                                        <label for="patient-lang-input" class="form-label">Patient's Language:</label>
+                                        <select class="form-select" id="patient-lang-input" name="patient_lang">
+                                            {% for language in languages %}
+                                            <option value="{{ language }}" {% if language == patient_lang %}selected{% endif %}>{{ language }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <button type="button" id="clear-btn" class="btn btn-secondary w-100">
+                                        <i class="bi bi-trash"></i> Clear
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <button id="doctor-btn" type="button" class="btn btn-primary w-100">
+                                        <i class="bi bi-mic"></i> <span class="btn-label">Doctor Speaking</span>
+                                    </button>
+                                </div>
+                                <div class="col-md-6">
+                                    <button id="patient-btn" type="button" class="btn btn-primary w-100">
+                                        <i class="bi bi-mic"></i> <span class="btn-label">Patient Speaking</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
                     </div>
-                </article>
-            `;
-            
-            // Extract the translated text from the response
-            const lines = message.split('\n');
-            if (lines.length > 1) {
-                const translatedLine = lines[1];
-                const translatedText = translatedLine.split('Translated: ')[1];
+                </div>
                 
-                // Get the appropriate language code based on who is speaking
-                const langCode = sender === 'doctor' ? 
-                    get_language_code(patientLang.value) : 
-                    get_language_code(doctorLang.value);
-                
-                // No need to request TTS here as the server already handles it
-                // The audio will be sent via WebSocket and played automatically
-            }
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card result-card mb-4">
+                            <div class="card-header">
+                                <h3>Latest Message:</h3>
+                            </div>
+                            <div class="card-body chat-box" id="latest-message-container">
+                                <p><em>Not yet started.</em></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card result-card mb-4">
+                            <div class="card-header">
+                                <h3>Conversation History:</h3>
+                            </div>
+                            <div class="card-body chat-box" id="conversation-history">
+                                {% if conversation %}
+                                    {% for entry in conversation %}
+                                        <div class="chat-message {{ entry.speaker }}">
+                                            <img src="{{ url_for('static', filename=entry.speaker + '.jpg') }}" class="avatar" alt="{{ entry.speaker | capitalize }} Avatar">
+                                            <div class="message-bubble">
+                                                {{ entry.text.split('] ')[1:] | join('] ') }}
+                                                <div class="timestamp">{{ entry.text.split(']')[0] ~ ']' }}</div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <p><em>No history yet.</em></p>
+                                {% endif %}
+                            </div>
+                            <div class="card-footer">
+                                <a href="{{ url_for('download_file') }}" class="btn btn-outline-primary w-100">
+                                    <i class="bi bi-download"></i> Download Conversation
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const socket = io();
+        const audioPlayer = new Audio();
+        
+        socket.on('connect', () => {
+            console.log('Connected to WebSocket server');
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('Disconnected from WebSocket server');
+        });
+        
+        socket.on('audio_data', (data) => {
+            console.log('Received audio data for language:', data.language);
+            audioPlayer.src = 'data:audio/mp3;base64,' + data.audio_data;
+            audioPlayer.play();
+        });
+        
+        function get_language_code(languageName) {
+            const LANGUAGES = {
+                "English": "en", "Hindi": "hi", "Kannada": "kn", "Marathi": "mr", "Tamil": "ta",
+                "Telugu": "te", "Spanish": "es", "French": "fr", "Haryanvi": "bgc", "Arabic": "ar",
+                "Bengali": "bn", "Chinese": "zh", "German": "de", "Japanese": "ja", "Portuguese": "pt",
+                "Russian": "ru", "Urdu": "ur", "Punjabi": "pa", "Gujarati": "gu", "Malayalam": "ml",
+                "Odia": "or", "Italian": "it", "Dutch": "nl", "Korean": "ko", "Turkish": "tr", 
+                "Vietnamese": "vi", "Thai": "th"
+            };
+            return LANGUAGES[languageName] || "en";
         }
         
-        // Reload conversation history
-        fetch(window.location.href, {
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
+        const doctorBtn = document.getElementById('doctor-btn');
+        const patientBtn = document.getElementById('patient-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const doctorLang = document.getElementById('doctor-lang-input');
+        const patientLang = document.getElementById('patient-lang-input');
+        const latestMessageContainer = document.getElementById('latest-message-container');
+        const conversationHistory = document.getElementById('conversation-history');
+
+        function flashStatus(button, originalLabel) {
+            const labelSpan = button.querySelector('.btn-label');
+            labelSpan.textContent = "Listening...";
+            setTimeout(() => {
+                labelSpan.textContent = "Recognizing...";
+            }, 4000);
+        }
+
+        function updateUI(response) {
+            if (response.message) {
+                const sender = response.sender;
+                const message = response.message;
+                const timestamp = message.split(']')[0] + ']';
+                const messageText = message.split('] ')[1];
+                
+                latestMessageContainer.innerHTML = `
+                    <div class="chat-message ${sender}">
+                        <img src="/static/${sender}.jpg" class="avatar" alt="${sender} Avatar">
+                        <div class="message-bubble">
+                            ${messageText}
+                            <div class="timestamp">${timestamp}</div>
+                        </div>
+                    </div>
+                `;
+                
+                if (message.includes("Microphone not") || message.includes("Speech Recognition Error")) {
+                    const errorElement = document.createElement('div');
+                    errorElement.className = 'alert alert-warning mt-3';
+                    errorElement.textContent = messageText;
+                    latestMessageContainer.appendChild(errorElement);
+                }
             }
-        })
-        .then(response => response.json())
-        .then(data => {
-            // Update conversation history if needed
-            // This would require the backend to return the conversation history in JSON format
+            
+            fetch(window.location.href, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.conversation) {
+                    conversationHistory.innerHTML = data.conversation.map(entry => `
+                        <div class="chat-message ${entry.speaker}">
+                            <img src="/static/${entry.speaker}.jpg" class="avatar" alt="${entry.speaker} Avatar">
+                            <div class="message-bubble">
+                                ${entry.text.split('] ')[1]}
+                                <div class="timestamp">${entry.text.split(']')[0]}]</div>
+                            </div>
+                        </div>
+                    `).join('') || '<p><em>No history yet.</em></p>';
+                }
+            });
+        }
+
+        function sendRequest(action) {
+            const formData = new FormData();
+            formData.append('action', action);
+            formData.append('doctor_lang', doctorLang.value);
+            formData.append('patient_lang', patientLang.value);
+
+            fetch('/translator', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                updateUI(data);
+                const button = action === 'doctor' ? doctorBtn : patientBtn;
+                button.querySelector('.btn-label').textContent = 
+                    action === 'doctor' ? 'Doctor Speaking' : 'Patient Speaking';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                const button = action === 'doctor' ? doctorBtn : patientBtn;
+                button.querySelector('.btn-label').textContent = 
+                    action === 'doctor' ? 'Doctor Speaking' : 'Patient Speaking';
+                
+                const errorElement = document.createElement('div');
+                errorElement.className = 'alert alert-danger mt-3';
+                errorElement.textContent = 'Error processing request. Please try again.';
+                latestMessageContainer.appendChild(errorElement);
+            });
+        }
+
+        doctorBtn.addEventListener('click', () => {
+            flashStatus(doctorBtn, "Doctor Speaking");
+            sendRequest('doctor');
         });
-    }
 
-    function sendRequest(action) {
-        const formData = new FormData();
-        formData.append('action', action);
-        formData.append('doctor_lang', doctorLang.value);
-        formData.append('patient_lang', patientLang.value);
-
-        fetch('/translator', {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            updateUI(data);
-            // Reset button label
-            const button = action === 'doctor' ? doctorBtn : patientBtn;
-            button.querySelector('.btn-label').textContent = 
-                action === 'doctor' ? 'Doctor Speaking' : 'Patient Speaking';
-        })
-        .catch(error => {
-            console.error('Error:', error);
+        patientBtn.addEventListener('click', () => {
+            flashStatus(patientBtn, "Patient Speaking");
+            sendRequest('patient');
         });
-    }
 
-    doctorBtn.addEventListener('click', () => {
-        flashStatus(doctorBtn, "Doctor Speaking");
-        sendRequest('doctor');
-    });
-
-    patientBtn.addEventListener('click', () => {
-        flashStatus(patientBtn, "Patient Speaking");
-        sendRequest('patient');
-    });
-
-    clearBtn.addEventListener('click', () => {
-        fetch('/translator', {
-            method: 'POST',
-            body: 'action=clear',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Content-Type': 'application/x-www-form-urlencoded',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'cleared') {
-                conversationHistory.innerHTML = '<p><em>No history yet.</em></p>';
-            }
+        clearBtn.addEventListener('click', () => {
+            fetch('/translator', {
+                method: 'POST',
+                body: 'action=clear',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'cleared') {
+                    conversationHistory.innerHTML = '<p><em>No history yet.</em></p>';
+                }
+            });
         });
     });
-});
-</script>
-{% endblock %}
+    </script>
+</body>
+</html>
