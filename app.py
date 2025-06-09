@@ -1,3 +1,5 @@
+import eventlet
+eventlet.monkey_patch()
 from flask import Flask, render_template, request, redirect, url_for, send_file, jsonify
 import os
 import torch
@@ -7,10 +9,9 @@ import speech_recognition as sr
 from gtts import gTTS
 from datetime import datetime
 from googletrans import Translator
-
 import tempfile
 import google.generativeai as genai
-import pymupdf  # Changed from fitz to pymupdf
+import pymupdf
 from dotenv import load_dotenv
 from fpdf import FPDF
 import traceback
@@ -55,7 +56,6 @@ class ConversationAnalyzer:
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForCausalLM.from_pretrained(model_name).to(self.device)
 
-        # Ensure tokenizer has a pad token
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
@@ -66,7 +66,6 @@ class ConversationAnalyzer:
         filename = uploaded_file.filename.lower()
         if filename.endswith('.pdf'):
             try:
-                # Use pymupdf to open PDF from stream
                 doc = pymupdf.open(stream=uploaded_file.read(), filetype="pdf")
                 return "\n".join([page.get_text() for page in doc])
             except Exception as e:
@@ -81,21 +80,11 @@ class ConversationAnalyzer:
 
     def analyze_conversation(self, input_data, max_length: int = 200, temperature: float = 0.7):
         """
-        Analyze a doctor-patient conversation from either an uploaded file or plain text and generate a structured summary.
-
-        Args:
-            input_data (Union[werkzeug.datastructures.FileStorage, str]): Uploaded conversation file or plain text.
-            max_length (int): Maximum number of tokens to generate.
-            temperature (float): Sampling temperature (higher = more creative, lower = more focused).
-
-        Returns:
-            str: Structured summary extracted from the conversation.
+        Analyze a doctor-patient conversation and generate a structured summary.
         """
         if hasattr(input_data, "filename"):
-            # It's an uploaded file
             conversation_text = self._read_file_content(input_data)
         elif isinstance(input_data, str):
-            # It's a plain text string
             conversation_text = input_data
         else:
             raise ValueError("Unsupported input data type for analysis")
@@ -132,12 +121,12 @@ Analysis Summary:
         summary_start = full_output.find("Analysis Summary:") + len("Analysis Summary:")
         summary = full_output[summary_start:].strip()
 
-        # Remove trailing prompt reprint if any
         if "Conversation:" in summary:
             summary = summary.split("Conversation:")[0].strip()
 
         return summary
-# Initialize the Conversation Analyzer at startup
+
+# Initialize the Conversation Analyzer
 try:
     print("Initializing Conversation Analyzer...")
     model_processor = ConversationAnalyzer(model_name="gpt2")
@@ -154,21 +143,39 @@ def get_language_code(language_name):
     return LANGUAGES.get(language_name, "en")
 
 def recognize_speech():
+    """Recognize speech with error handling for microphone issues"""
     recognizer = sr.Recognizer()
-    with sr.Microphone() as source:
-        print("Listening...")
-        recognizer.pause_threshold = 1
-        audio = recognizer.listen(source, phrase_time_limit=10)
+    
     try:
+        # Check if microphone is available
+        if not sr.Microphone.list_microphone_names():
+            return "Microphone not detected"
+            
+        with sr.Microphone() as source:
+            print("Adjusting for ambient noise...")
+            recognizer.adjust_for_ambient_noise(source, duration=1)
+            print("Listening...")
+            recognizer.pause_threshold = 1
+            audio = recognizer.listen(source, phrase_time_limit=10)
+            
         print("Recognizing...")
         return recognizer.recognize_google(audio)
     except sr.UnknownValueError:
         return ""
     except sr.RequestError as e:
         return f"Speech Recognition Error: {e}"
+    except OSError as e:
+        print(f"Microphone error: {e}")
+        return "Microphone not available"
+    except Exception as e:
+        print(f"Error in speech recognition: {e}")
+        return "Speech recognition failed"
 
 def translate_text(text, target_lang_code):
     try:
+        if text.startswith(("Speech Recognition Error", "Microphone")):
+            return text  # Don't translate error messages
+            
         translated = translator_engine.translate(text, dest=target_lang_code)
         return translated.text
     except Exception as e:
@@ -177,13 +184,19 @@ def translate_text(text, target_lang_code):
 
 def speak_text(text, lang_code):
     """Wrapper function that uses text_to_voice"""
+    if not text or text.startswith(("Speech Recognition Error", "Microphone")):
+        return  # Don't speak error messages
+        
     text_to_voice(text, lang_code)
 
 def translate_and_speak(speaker, target_lang_name):
     target_lang_code = get_language_code(target_lang_name)
     spoken_text = recognize_speech()
+    
     if not spoken_text:
         return f"{speaker} said nothing or speech could not be recognized."
+    if spoken_text.startswith(("Speech Recognition Error", "Microphone")):
+        return spoken_text  # Return the error message directly
 
     translated = translate_text(spoken_text, target_lang_code)
     
@@ -196,32 +209,30 @@ def translate_and_speak(speaker, target_lang_name):
         f.write(f"{timestamp} Translated: {translated}\n")
 
     return f"{timestamp} {speaker} said: {spoken_text}\n{timestamp} Translated: {translated}"
+
 def text_to_voice(text_data, to_language):
     """Convert text to speech and emit it via WebSocket"""
     try:
-        # Create a temporary file with a unique name
+        if not text_data:
+            return
+            
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_audio:
             temp_path = temp_audio.name
         
-        # Generate speech and save to temp file
         myobj = gTTS(text=text_data, lang=to_language, slow=False)
         myobj.save(temp_path)
         
-        # Read the audio file as binary data
         with open(temp_path, 'rb') as audio_file:
             audio_data = audio_file.read()
         
-        # Encode the binary data as base64
         audio_base64 = base64.b64encode(audio_data).decode('utf-8')
         
-        # Emit the audio data via WebSocket
         socketio.emit('audio_data', {
             'audio_data': audio_base64,
             'language': to_language,
             'text': text_data
         })
         
-        # Clean up
         os.remove(temp_path)
         
     except Exception as e:
@@ -250,19 +261,15 @@ def extract_text(file):
     """Extract text from uploaded PDF or text file"""
     try:
         if file.filename.endswith(".pdf"):
-            # Open PDF document from file stream
             doc = pymupdf.open(stream=file.read(), filetype="pdf")
             text = []
             for page in doc:
                 text.append(page.get_text())
             return "\n".join(text)
-        
         elif file.filename.endswith(".txt"):
             return file.read().decode("utf-8")
-        
         else:
             return f"Unsupported file type: {file.filename.split('.')[-1]}"
-            
     except Exception as e:
         print(f"Error extracting text: {e}")
         return f"Error reading file: {str(e)}"
@@ -275,7 +282,6 @@ def home():
 @app.route("/translator", methods=["GET", "POST"])
 def translator():
     if request.method == "POST" and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        # Handle AJAX request
         doctor_lang = request.form.get("doctor_lang", "English")
         patient_lang = request.form.get("patient_lang", "Hindi")
         action = request.form.get("action")
@@ -300,16 +306,22 @@ def translator():
             open(history_file, "w").close()
             return jsonify({"status": "cleared"})
 
-    # Handle regular GET request
     doctor_lang = request.args.get("doctor_lang", "English")
     patient_lang = request.args.get("patient_lang", "Hindi")
     conversation = read_conversation_history()
     
-    return render_template("translator.html",message="",sender="",doctor_lang=doctor_lang,patient_lang=patient_lang,languages=LANGUAGES,conversation=conversation)
+    return render_template("translator.html",
+                         message="",
+                         sender="",
+                         doctor_lang=doctor_lang,
+                         patient_lang=patient_lang,
+                         languages=LANGUAGES,
+                         conversation=conversation)
+
 @app.route("/download_file")
 def download_file():
     return send_file(history_file, as_attachment=True)
-
+    
 @app.route("/llm", methods=["GET", "POST"])
 def llm():
 
@@ -556,4 +568,4 @@ def handle_speak_text(data):
 
 # ========== Run Flask App with SocketIO ==========
 if __name__ == "__main__":
-    socketio.run(app, debug=True, use_reloader=False)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
