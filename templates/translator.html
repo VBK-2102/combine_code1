@@ -74,28 +74,6 @@
             z-index: 1000;
             display: none;
         }
-        .btn-microphone {
-            position: relative;
-        }
-        .recording-indicator {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            width: 15px;
-            height: 15px;
-            background-color: red;
-            border-radius: 50%;
-            display: none;
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-            0% { transform: scale(0.95); opacity: 0.7; }
-            50% { transform: scale(1.1); opacity: 1; }
-            100% { transform: scale(0.95); opacity: 0.7; }
-        }
-        #mic-permission-btn {
-            margin-bottom: 15px;
-        }
     </style>
 </head>
 <body>
@@ -115,9 +93,6 @@
 
                 <div class="card settings-card mb-4">
                     <div class="card-body">
-                        <button id="mic-permission-btn" class="btn btn-warning w-100">
-                            <i class="bi bi-mic-mute"></i> Click to Enable Microphone Access
-                        </button>
                         <form id="translator-form">
                             <div class="row">
                                 <div class="col-md-5">
@@ -151,15 +126,13 @@
                             
                             <div class="row mt-3">
                                 <div class="col-md-6">
-                                    <button id="doctor-btn" type="button" class="btn btn-primary w-100 btn-microphone" disabled>
+                                    <button id="doctor-btn" type="button" class="btn btn-primary w-100">
                                         <i class="bi bi-mic"></i> <span class="btn-label">Doctor Speaking</span>
-                                        <span class="recording-indicator" id="doctor-recording"></span>
                                     </button>
                                 </div>
                                 <div class="col-md-6">
-                                    <button id="patient-btn" type="button" class="btn btn-primary w-100 btn-microphone" disabled>
+                                    <button id="patient-btn" type="button" class="btn btn-primary w-100">
                                         <i class="bi bi-mic"></i> <span class="btn-label">Patient Speaking</span>
-                                        <span class="recording-indicator" id="patient-recording"></span>
                                     </button>
                                 </div>
                             </div>
@@ -222,46 +195,10 @@
         });
         const audioPlayer = new Audio();
         let isProcessing = false;
-        let mediaStream = null;
         
         // Status alert elements
         const statusAlert = document.getElementById('status-alert');
         const alertMessage = document.getElementById('alert-message');
-        const micPermissionBtn = document.getElementById('mic-permission-btn');
-        const doctorBtn = document.getElementById('doctor-btn');
-        const patientBtn = document.getElementById('patient-btn');
-        
-        // Request microphone permission
-        micPermissionBtn.addEventListener('click', () => {
-            navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(stream => {
-                    mediaStream = stream;
-                    micPermissionBtn.innerHTML = '<i class="bi bi-mic"></i> Microphone Access Granted';
-                    micPermissionBtn.classList.remove('btn-warning');
-                    micPermissionBtn.classList.add('btn-success');
-                    micPermissionBtn.disabled = true;
-                    
-                    // Enable the recording buttons
-                    doctorBtn.disabled = false;
-                    patientBtn.disabled = false;
-                    
-                    showAlert('Microphone access granted', 'success');
-                    
-                    // Stop all tracks when window is closed
-                    window.addEventListener('beforeunload', () => {
-                        if (mediaStream) {
-                            mediaStream.getTracks().forEach(track => track.stop());
-                        }
-                    });
-                })
-                .catch(err => {
-                    console.error("Microphone access denied:", err);
-                    micPermissionBtn.innerHTML = '<i class="bi bi-mic-mute"></i> Microphone Access Denied';
-                    micPermissionBtn.classList.remove('btn-warning');
-                    micPermissionBtn.classList.add('btn-danger');
-                    showAlert('Microphone access is required for speech recognition', 'danger');
-                });
-        });
         
         function showAlert(message, type = 'danger') {
             statusAlert.className = `alert alert-${type} alert-dismissible fade show`;
@@ -316,6 +253,8 @@
             return LANGUAGES[languageName] || "en";
         }
         
+        const doctorBtn = document.getElementById('doctor-btn');
+        const patientBtn = document.getElementById('patient-btn');
         const clearBtn = document.getElementById('clear-btn');
         const doctorLang = document.getElementById('doctor-lang-input');
         const patientLang = document.getElementById('patient-lang-input');
@@ -327,24 +266,12 @@
             if (isProcessing) return;
             
             const labelSpan = button.querySelector('.btn-label');
-            const recordingIndicator = button.querySelector('.recording-indicator');
-            
             labelSpan.textContent = "Listening...";
-            recordingIndicator.style.display = 'block';
-            
             setTimeout(() => {
                 if (isProcessing) {
                     labelSpan.textContent = "Recognizing...";
                 }
             }, 4000);
-        }
-
-        function resetButton(button, originalLabel) {
-            const labelSpan = button.querySelector('.btn-label');
-            const recordingIndicator = button.querySelector('.recording-indicator');
-            
-            labelSpan.textContent = originalLabel;
-            recordingIndicator.style.display = 'none';
         }
 
         function updateUI(response) {
@@ -430,13 +357,15 @@
             .then(data => {
                 updateUI(data);
                 const button = action === 'doctor' ? doctorBtn : patientBtn;
-                resetButton(button, action === 'doctor' ? 'Doctor Speaking' : 'Patient Speaking');
+                button.querySelector('.btn-label').textContent = 
+                    action === 'doctor' ? 'Doctor Speaking' : 'Patient Speaking';
             })
             .catch(error => {
                 console.error('Error:', error);
                 isProcessing = false;
                 const button = action === 'doctor' ? doctorBtn : patientBtn;
-                resetButton(button, action === 'doctor' ? 'Doctor Speaking' : 'Patient Speaking');
+                button.querySelector('.btn-label').textContent = 
+                    action === 'doctor' ? 'Doctor Speaking' : 'Patient Speaking';
                 
                 const errorElement = document.createElement('div');
                 errorElement.className = 'alert alert-danger mt-3';
